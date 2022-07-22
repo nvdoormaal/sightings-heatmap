@@ -12,7 +12,7 @@ library(sf)
 library(lubridate)
 library(spatstat)
 library(stars)
-
+library(ggspatial)
 
 ## Load data
 sightings_file <- list.files(
@@ -124,24 +124,31 @@ get_densities <- function(.data, x){
     leaveoneout = TRUE, sigma = 1000, edge = TRUE, dimyx = 175)
   
   density_stars <- st_as_stars(density_spatstat)
-  density_sf <- st_as_sf(density_stars) %>% 
-    st_set_crs(32736) %>% 
-    st_intersection(y = ownr_utm)
+  # density_sf <- st_as_sf(density_stars) %>% 
+  #   st_set_crs(32736) %>% 
+  #   st_intersection(y = ownr_utm)
 }
 
 ## Run the 'get_density' for each species in the list
 all_densities <- map(sightings_split, get_densities)
 
 ## Get lowest and highest value to use in the legend of the map later
-combined_densities <- bind_rows(all_densities) 
+combined_densities <- all_densities %>% 
+  map(as.data.frame) %>% 
+  bind_rows() %>% 
+  filter(!is.na(v))
 
 lowest_value <- combined_densities %>% 
   pull(v) %>% 
-  quantile(0.25)
+  quantile(0.5, na.rm = TRUE)
+
+middle_value <- combined_densities %>% 
+  pull(v) %>% 
+  quantile(0.85, na.rm = TRUE)
 
 highest_value <- combined_densities %>% 
   pull(v) %>% 
-  quantile(1)
+  quantile(0.99, na.rm = TRUE)
 
 ## Define density-map function
 make_maps <- function(density_obj, species){
@@ -153,24 +160,46 @@ make_maps <- function(density_obj, species){
     filter(Animal == species) %>% nrow()
   
   ## Create the map
-  density_obj %>%
     ggplot() +
-    geom_sf(aes(fill = v, alpha = v), col = NA) +
-    scale_fill_viridis_c(limits = c(lowest_value, highest_value), na.value = NA) +
-    scale_alpha_continuous(range = c(0.75, 1), guide = "none") +
+    geom_stars(data = density_obj, 
+               aes(x = x, y = y, fill = v, alpha = v)) +
+    scale_fill_viridis_c("Density", option = "magma", 
+                         limits = c(lowest_value, highest_value), na.value = NA, 
+                         breaks = c(lowest_value, middle_value, highest_value),
+                         labels = c("low", "med", "high")) +
+    scale_alpha_continuous(range = c(0.25, 1), guide = "none") +
     geom_sf(data = st_boundary(ownr_utm)) +
-    labs(title = species) +
+    labs(title = paste("Density map of", species, "in OWNR"),
+         subtitle = paste("Based on", obs_counts, "reported sightings and",
+                          ct_counts, "camera trap observations")) +
     theme_void() +
     theme(
       legend.position = "bottom"
     )
 }
-
 ## Create the maps
-#map2(all_densities, names(all_densities), make_maps)
-
+test <- map2(all_densities, names(all_densities), make_maps)
 
 tictoc::toc()
 
+A <- test$`black rhino`
 
+B <- A + 
+  annotation_scale(location = "bl", height = unit(0.5, "cm"),
+                   text_cex = 1.5, text_face = "bold") +
+  annotation_north_arrow(location = "bl", pad_y = unit(0.5, "cm"),
+                         height = unit(2, "cm"), width = unit(2, "cm")) +
+  guides(
+    fill = guide_colourbar(
+      title.position = "top", title.hjust = 0.5, ticks = FALSE
+    )
+  ) +
+  theme(
+    title = element_text(size = 14, face = "bold"),
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text = element_text(size = 12)
+  )
 
+ggsave(filename = "test_B_scale01.png",
+       plot = B, width = 16, height = 15, units = 'cm',
+       scale = 2, dpi = 100, type = "cairo")
