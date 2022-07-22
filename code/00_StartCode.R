@@ -4,7 +4,7 @@
 
 ## Add explanation
 
-
+tictoc::tic()
 ## Load packages
 library(tidyverse)
 library(here)
@@ -102,7 +102,6 @@ ownr_utm <- st_read(
   here("data", "background", "OWNRBufferzone.shp")
 ) %>% 
   st_transform(crs = 32736)
-ownr_utm <- ownr_utm[-1,]
 
 ownr_buffer <- ownr_utm %>% 
   st_union() %>% 
@@ -110,7 +109,8 @@ ownr_buffer <- ownr_utm %>%
 
 ownr_window <- as.owin(ownr_buffer)
 
-A <- function(.data, x){
+## Define density function
+get_densities <- function(.data, x){
   data_matrix <- as.matrix(.data)
   
   ppp_test <- ppp(
@@ -121,45 +121,56 @@ A <- function(.data, x){
   
   density_spatstat <- density(
     ppp_test, kernel = "quartic", diggle = TRUE,
-    leaveoneout = TRUE, sigma = 500, edge = TRUE, dimyx = 200)
+    leaveoneout = TRUE, sigma = 1000, edge = TRUE, dimyx = 175)
   
   density_stars <- st_as_stars(density_spatstat)
-  density_sf <- st_as_sf(density_stars)
+  density_sf <- st_as_sf(density_stars) %>% 
+    st_set_crs(32736) %>% 
+    st_intersection(y = ownr_utm)
 }
+
+## Run the 'get_density' for each species in the list
+all_densities <- map(sightings_split, get_densities)
+
+## Get lowest and highest value to use in the legend of the map later
+combined_densities <- bind_rows(all_densities) 
+
+lowest_value <- combined_densities %>% 
+  pull(v) %>% 
+  quantile(0.25)
+
+highest_value <- combined_densities %>% 
+  pull(v) %>% 
+  quantile(1)
+
+## Define density-map function
+make_maps <- function(density_obj, species){
   
+  ## Extract info to show on the map
+  obs_counts <- observations %>% 
+    filter(Animal == species) %>% nrow()
+  ct_counts <- ct_subset %>% 
+    filter(Animal == species) %>% nrow()
+  
+  ## Create the map
+  density_obj %>%
+    ggplot() +
+    geom_sf(aes(fill = v, alpha = v), col = NA) +
+    scale_fill_viridis_c(limits = c(lowest_value, highest_value), na.value = NA) +
+    scale_alpha_continuous(range = c(0.75, 1), guide = "none") +
+    geom_sf(data = st_boundary(ownr_utm)) +
+    labs(title = species) +
+    theme_void() +
+    theme(
+      legend.position = "bottom"
+    )
+}
 
-ppp_test <- ppp(
-  x = A[,1],
-  y = A[,2],
-  window = ownr_window, check = TRUE
-)
-
-sightings_ppp <- (sightings_sf)
-
-Window(sightings_ppp) <- as.owin(ownr_utm)
-
-density_spatstat <- density(ppp_test, kernel = "quartic", diggle = TRUE,
-                            leaveoneout = TRUE, sigma = 500, edge = TRUE,
-                            dimyx = 200)
-
-density_stars <- stars::st_as_stars(density_spatstat)
-density_sf <- st_as_sf(density_stars) %>%
-  st_set_crs(32736) %>% 
-  st_intersection(y = ownr_utm)
+## Create the maps
+#map2(all_densities, names(all_densities), make_maps)
 
 
-quartic_sigma <- ggplot() +
-  geom_sf(data = density_sf %>% filter(v>0.0000001), 
-          aes(fill = v), col = NA) +
-  scale_fill_viridis_c() + 
-  geom_sf(data = st_boundary(ownr_utm)) +
-  labs(title = "quartic - Sima") +
-  theme_void() +
-  theme(
-    legend.position = "bottom"
-  )
-
-quartic_sigma
+tictoc::toc()
 
 
 
