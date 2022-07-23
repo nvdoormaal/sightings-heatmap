@@ -4,7 +4,7 @@
 
 ## Add explanation
 
-tictoc::tic()
+
 ## Load packages
 library(tidyverse)
 library(here)
@@ -121,12 +121,11 @@ get_densities <- function(.data, x){
   
   density_spatstat <- density(
     ppp_test, kernel = "quartic", diggle = TRUE,
-    leaveoneout = TRUE, sigma = 1000, edge = TRUE, dimyx = 175)
+    leaveoneout = TRUE, sigma = 1000, edge = TRUE, dimyx = 400)
   
-  density_stars <- st_as_stars(density_spatstat)
-  # density_sf <- st_as_sf(density_stars) %>% 
-  #   st_set_crs(32736) %>% 
-  #   st_intersection(y = ownr_utm)
+  density_stars <- st_as_stars(density_spatstat) %>% 
+    st_set_crs(32736) %>%
+    st_crop(y = ownr_utm)
 }
 
 ## Run the 'get_density' for each species in the list
@@ -160,46 +159,52 @@ make_maps <- function(density_obj, species){
     filter(Animal == species) %>% nrow()
   
   ## Create the map
-    ggplot() +
+  ggplot() +
     geom_stars(data = density_obj, 
                aes(x = x, y = y, fill = v, alpha = v)) +
-    scale_fill_viridis_c("Density", option = "magma", 
+    scale_fill_viridis_c("Density", option = "inferno", 
                          limits = c(lowest_value, highest_value), na.value = NA, 
                          breaks = c(lowest_value, middle_value, highest_value),
                          labels = c("low", "med", "high")) +
-    scale_alpha_continuous(range = c(0.25, 1), guide = "none") +
+    scale_alpha_continuous(range = c(0.5, 1), guide = "none") +
+    scale_x_continuous(expand = c(0.1,0.1)) +
+    scale_y_continuous(expand = c(0.1,0.1)) +
     geom_sf(data = st_boundary(ownr_utm)) +
     labs(title = paste("Density map of", species, "in OWNR"),
          subtitle = paste("Based on", obs_counts, "reported sightings and",
                           ct_counts, "camera trap observations")) +
-    theme_void() +
-    theme(
-      legend.position = "bottom"
-    )
+      annotation_scale(location = "bl", height = unit(0.5, "cm"),
+                       text_cex = 1.5, text_face = "bold") +
+      annotation_north_arrow(location = "tr",
+                             height = unit(2, "cm"), width = unit(2, "cm")) +
+      theme_void() +
+      theme(
+        legend.position = "bottom",
+        title = element_text(size = 14, face = "bold"),
+        legend.title = element_text(size = 12, face = "bold"),
+        legend.text = element_text(size = 12),
+        panel.background = element_rect(fill = "white", color = "black", size = 2),
+        plot.background = element_rect(fill = "white", color = "white"),
+        plot.margin = unit(c(0,0,0,0), "cm")
+      ) +
+      guides(
+        fill = guide_colourbar(
+          title.position = "top", title.hjust = 0.5, ticks = FALSE
+        )
+      )
 }
 ## Create the maps
-test <- map2(all_densities, names(all_densities), make_maps)
+density_maps <- map2(all_densities, names(all_densities), make_maps)
 
-tictoc::toc()
+## Export maps in a loop
+formatted_date <- format(Sys.Date(), format = "%y%m%d")
 
-A <- test$`black rhino`
+for (i in 1:length(density_maps)) {
+  export_name <- gsub(pattern = " ", replacement = "", names(density_maps)[i])
 
-B <- A + 
-  annotation_scale(location = "bl", height = unit(0.5, "cm"),
-                   text_cex = 1.5, text_face = "bold") +
-  annotation_north_arrow(location = "bl", pad_y = unit(0.5, "cm"),
-                         height = unit(2, "cm"), width = unit(2, "cm")) +
-  guides(
-    fill = guide_colourbar(
-      title.position = "top", title.hjust = 0.5, ticks = FALSE
-    )
-  ) +
-  theme(
-    title = element_text(size = 14, face = "bold"),
-    legend.title = element_text(size = 12, face = "bold"),
-    legend.text = element_text(size = 12)
-  )
-
-ggsave(filename = "test_B_scale01.png",
-       plot = B, width = 16, height = 15, units = 'cm',
-       scale = 2, dpi = 100, type = "cairo")
+  ggsave(plot = density_maps[[i]], 
+         filename = here("output", paste(formatted_date, export_name, "densitymap.png", sep = "_")),
+         device = "png", dpi = 400, type = "cairo",
+         width = 14, height = 10, units = "cm", scale = 2
+         )
+}
