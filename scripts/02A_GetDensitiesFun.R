@@ -1,5 +1,6 @@
 # Define density function
 get_densities <- function(.data, x){
+  
   data_matrix <- as.matrix(.data)
   
   ppp_test <- ppp(

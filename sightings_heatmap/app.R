@@ -60,7 +60,9 @@ ui <- fluidPage(
         mainPanel(
           tabsetPanel( type = "tabs",
                        tabPanel(title = "Heat map", 
-                                plotOutput("density_plot", width = "110%", height = "1000px")),
+                                plotOutput("density_plot", width = "100%", height = "800px"
+                                           # width = "110%", height = "1000px"
+                                           )),
                        tabPanel(title = "Data", 
                                 DTOutput("data_preview")),
                        tabPanel(title = "Plot 01", 
@@ -145,8 +147,8 @@ server <- function(input, output, session) {
     
     ## Create the maps
     wrap_plots(density_maps()) +
-      plot_layout(guides = "auto", heights = c(2,2), ncol = 1)
-  }, execOnResize = TRUE, bg = "transparent", height = "auto")
+      plot_layout(guides = "auto", ncol = 1)
+  }, execOnResize = TRUE, bg = "transparent")
   
   output$test1 <- renderPlot({
     density_maps()[1]

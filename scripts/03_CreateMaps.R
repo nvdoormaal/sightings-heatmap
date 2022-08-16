@@ -11,22 +11,6 @@ make_maps <- function(density_obj, species){
     filter(Animal == species & str_detect(Identifier, pattern = "camera")) %>%
     nrow()
   
-  # "magma" (or "A")
-  # 
-  # "inferno" (or "B")
-  # 
-  # "plasma" (or "C")
-  # 
-  # "viridis" (or "D")
-  # 
-  # "cividis" (or "E")
-  # 
-  # "rocket" (or "F")
-  # 
-  # "mako" (or "G")
-  # 
-  # "turbo" (or "H")
-  
   ## Create the map
   ggplot() +
     layer_spatial(data = ownr_utm, fill = "#90ee90", alpha = 0.2) +

@@ -18,14 +18,16 @@ library(ggspatial)
 sightings_file <- list.files(
   path = here("data"), pattern = ".csv", full.names = TRUE
 )
-sightings_raw <- read_delim(sightings_file, delim = ",") %>% 
+sightings_raw <- data.table::fread(sightings_file) %>% 
+  select(
+    c(dateOccurred, description, Animal, Identifier, latitude, longitude)
+  ) %>% 
   mutate(
-    Identifier = str_to_lower(Identifier),
-    Animal = str_to_lower(Animal)
+    Animal = str_to_lower(Animal),
+    Identifier = str_to_lower(Identifier)
   ) %>% 
   filter(
-    !is.na(longitude) | !is.na(latitude),
-    Animal == "black rhino" | Animal == "white rhino"
+    str_detect(Animal, pattern = "rhino")
   )
 
 ## split camera trap data and in-person observations
@@ -43,6 +45,7 @@ observations <- sightings_raw %>%
 distance_value <- 400
 
 ct_sf <- ct_data %>% 
+  filter(!is.na(longitude) | !is.na(latitude)) %>% 
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326, remove = FALSE) %>% 
   st_transform(crs = 32736)
 
@@ -78,6 +81,7 @@ sightings_all <- observations %>%
 
 ## Convert to spatial object
 sightings_sf <- sightings_all %>% 
+  filter( !is.na(longitude) | !is.na(latitude)) %>% 
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326, remove = FALSE) %>% 
   st_transform(crs = 32736) %>% 
   st_jitter(amount = 5)
@@ -111,6 +115,7 @@ ownr_window <- as.owin(ownr_buffer)
 
 ## Define density function
 get_densities <- function(.data, x){
+  
   data_matrix <- as.matrix(.data)
   
   ppp_test <- ppp(
@@ -119,13 +124,14 @@ get_densities <- function(.data, x){
     window = ownr_window, check = TRUE
   )
   
-  density_spatstat <- density(
+  density_spatstat <- density.ppp(
     ppp_test, kernel = "quartic", diggle = TRUE,
     leaveoneout = TRUE, sigma = 1000, edge = TRUE, dimyx = 400)
   
-  density_stars <- st_as_stars(density_spatstat) %>% 
+  density_stars <- st_as_stars(density_spatstat) %>%
     st_set_crs(32736) %>%
-    st_crop(y = ownr_utm)
+    st_crop(y = ownr_utm) %>% 
+    mutate(v_km = v * 1000000)
 }
 
 ## Run the 'get_density' for each species in the list
@@ -135,54 +141,48 @@ all_densities <- map(sightings_split, get_densities)
 combined_densities <- all_densities %>% 
   map(as.data.frame) %>% 
   bind_rows() %>% 
-  filter(!is.na(v))
+  filter(!is.na(v_km))
 
-lowest_value <- combined_densities %>% 
-  pull(v) %>% 
-  quantile(0.5, na.rm = TRUE)
-
-middle_value <- combined_densities %>% 
-  pull(v) %>% 
-  quantile(0.85, na.rm = TRUE)
-
-highest_value <- combined_densities %>% 
-  pull(v) %>% 
-  quantile(0.99, na.rm = TRUE)
+highest_value <- max(combined_densities$v_km)
 
 ## Define density-map function
 make_maps <- function(density_obj, species){
   
   ## Extract info to show on the map
-  obs_counts <- observations %>% 
-    filter(Animal == species) %>% nrow()
-  ct_counts <- ct_subset %>% 
-    filter(Animal == species) %>% nrow()
+  obs_counts <- sightings_all %>% 
+    filter(Animal == species & 
+             str_detect(Identifier, pattern = "camera", negate = TRUE)) %>% 
+    nrow()
+  
+  ct_counts <- sightings_all %>% 
+    filter(Animal == species & str_detect(Identifier, pattern = "camera")) %>%
+    nrow()
   
   ## Create the map
   ggplot() +
+    layer_spatial(data = ownr_utm, fill = "#90ee90", alpha = 0.2) +
     geom_stars(data = density_obj, 
                aes(x = x, y = y, fill = v, alpha = v)) +
     scale_fill_viridis_c("Density", option = "inferno", 
-                         limits = c(lowest_value, highest_value), na.value = NA, 
-                         breaks = c(lowest_value, middle_value, highest_value),
+                         limits = c(0, 1), na.value = NA, 
+                          breaks = c(0, middle_value, 1),
                          labels = c("low", "med", "high")) +
     scale_alpha_continuous(range = c(0.5, 1), guide = "none") +
     scale_x_continuous(expand = c(0.1,0.1)) +
     scale_y_continuous(expand = c(0.1,0.1)) +
-    geom_sf(data = st_boundary(ownr_utm)) +
     labs(title = paste("Density map of", species, "in OWNR"),
          subtitle = paste("Based on", obs_counts, "reported sightings and",
                           ct_counts, "camera trap observations")) +
       annotation_scale(location = "bl", height = unit(0.5, "cm"),
-                       text_cex = 1.5, text_face = "bold") +
+                       text_face = "bold") +
       annotation_north_arrow(location = "tr",
                              height = unit(2, "cm"), width = unit(2, "cm")) +
       theme_void() +
       theme(
         legend.position = "bottom",
-        title = element_text(size = 14, face = "bold"),
-        legend.title = element_text(size = 12, face = "bold"),
-        legend.text = element_text(size = 12),
+        title = element_text(size = 10, face = "bold", hjust = 0.5),
+        legend.title = element_text(size = 9, face = "bold"),
+        legend.text = element_text(size = 9),
         panel.background = element_rect(fill = "white", color = "black", size = 2),
         plot.background = element_rect(fill = "white", color = "white"),
         plot.margin = unit(c(0,0,0,0), "cm")
@@ -195,6 +195,7 @@ make_maps <- function(density_obj, species){
 }
 ## Create the maps
 density_maps <- map2(all_densities, names(all_densities), make_maps)
+patchwork::wrap_plots(density_maps) 
 
 ## Export maps in a loop
 formatted_date <- format(Sys.Date(), format = "%y%m%d")
@@ -208,3 +209,38 @@ for (i in 1:length(density_maps)) {
          width = 14, height = 10, units = "cm", scale = 2
          )
 }
+
+ggplot() +
+  layer_spatial(data = ownr_utm, fill = "#90ee90", alpha = 0.2) +
+  geom_stars(data = A, 
+             aes(x = x, y = y, fill = v_km, alpha = v_km)) +
+  scale_fill_viridis_c("Density", option = "inferno",
+                       limits = c(0, highest_value),
+                       na.value = "transparent") +
+  scale_alpha_continuous(range = c(0, 1), guide = "none") +
+  labs(title = paste("Density map of", "in OWNR"),
+       subtitle = paste("Based on", "reported sightings and",
+                        "camera trap observations")) +
+  annotation_scale(location = "bl", height = unit(0.5, "cm"),
+                   text_face = "bold") +
+  annotation_north_arrow(location = "tr",
+                         height = unit(2, "cm"), width = unit(2, "cm")) +
+  theme_void() +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    plot.title.position = "plot",
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(),
+    plot.background = element_rect(color = "black"),
+    # panel.background = element_rect(fill = "white", color = "black", size = 2),
+    # plot.background = element_rect(fill = "white", color = "white"),
+    plot.margin = unit(c(0.5,0,0.5,0), "cm")
+  ) +
+  guides(
+    fill = guide_colourbar(
+      title.position = "top", title.hjust = 0.5, ticks = TRUE
+    )
+  )
+  
