@@ -77,7 +77,7 @@ ct_subset <- ct_groups %>%
 
 ## Combine the ct subset with the other locations
 sightings_all <- observations %>% 
-  bind_rows(ct_subset)
+  bind_rows(ct_subset) 
 
 ## Convert to spatial object
 sightings_sf <- sightings_all %>% 
@@ -162,36 +162,37 @@ make_maps <- function(density_obj, species){
   ggplot() +
     layer_spatial(data = ownr_utm, fill = "#90ee90", alpha = 0.2) +
     geom_stars(data = density_obj, 
-               aes(x = x, y = y, fill = v, alpha = v)) +
-    scale_fill_viridis_c("Density", option = "inferno", 
-                         limits = c(0, 1), na.value = NA, 
-                          breaks = c(0, middle_value, 1),
-                         labels = c("low", "med", "high")) +
-    scale_alpha_continuous(range = c(0.5, 1), guide = "none") +
-    scale_x_continuous(expand = c(0.1,0.1)) +
-    scale_y_continuous(expand = c(0.1,0.1)) +
-    labs(title = paste("Density map of", species, "in OWNR"),
+               aes(x = x, y = y, fill = v_km, alpha = v_km)) +
+    scale_fill_viridis_c("Density", option = "magma",
+                         limits = c(0, highest_value),
+                         na.value = "transparent") +
+    scale_alpha_continuous(range = c(0, 1), guide = "none") +
+    labs(title = paste("Distribution of", species, "in OWNR"),
          subtitle = paste("Based on", obs_counts, "reported sightings and",
-                          ct_counts, "camera trap observations")) +
-      annotation_scale(location = "bl", height = unit(0.5, "cm"),
-                       text_face = "bold") +
-      annotation_north_arrow(location = "tr",
-                             height = unit(2, "cm"), width = unit(2, "cm")) +
-      theme_void() +
-      theme(
-        legend.position = "bottom",
-        title = element_text(size = 10, face = "bold", hjust = 0.5),
-        legend.title = element_text(size = 9, face = "bold"),
-        legend.text = element_text(size = 9),
-        panel.background = element_rect(fill = "white", color = "black", size = 2),
-        plot.background = element_rect(fill = "white", color = "white"),
-        plot.margin = unit(c(0,0,0,0), "cm")
-      ) +
-      guides(
-        fill = guide_colourbar(
-          title.position = "top", title.hjust = 0.5, ticks = FALSE
-        )
+                          ct_counts, "camera trap observations"),
+         caption = paste("map produced on", format(Sys.Date(), "%d %b %Y"))) +
+    annotation_scale(location = "bl", height = unit(0.5, "cm"),
+                     text_cex = 1) +
+    annotation_north_arrow(location = "tr",
+                           height = unit(1, "cm"), width = unit(1, "cm")) +
+    theme_void() +
+    theme(
+      legend.position = c(0.125, 0.15),
+      legend.direction = "horizontal",
+      legend.title = element_text(face = "bold"),
+      plot.title = element_text(face = "bold"),
+      plot.subtitle = element_text(),
+      plot.caption = element_text(),
+      plot.title.position = "panel",
+      plot.caption.position = "panel",
+      plot.margin = unit(c(0,0,0,0),"mm"),
+      panel.background = element_rect(fill = "white", color = "black", size = 2)
+    ) +
+    guides(
+      fill = guide_colourbar(
+        title.position = "top", title.hjust = 0.5, ticks = TRUE
       )
+    )
 }
 ## Create the maps
 density_maps <- map2(all_densities, names(all_densities), make_maps)

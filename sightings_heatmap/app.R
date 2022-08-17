@@ -19,8 +19,6 @@ gifs <- c(
   "https://media4.giphy.com/media/HnrKxE23lWCbu/giphy.gif",
   "https://c.tenor.com/_kEbS7KpN6oAAAAC/lol-omg.gif",
   "https://c.tenor.com/_TV6qVC4toAAAAAd/panda-dancing.gif",
-  "https://c.tenor.com/_TV6qVC4toAAAAAd/panda-dancing.gif",
-  "https://c.tenor.com/_TV6qVC4toAAAAAd/panda-dancing.gif",
   "https://c.tenor.com/7bJFeYCeQSgAAAAM/fat-bouncy-funny.gif"
 )
 
@@ -60,14 +58,16 @@ ui <- fluidPage(
         mainPanel(
           tabsetPanel( type = "tabs",
                        tabPanel(title = "Heat map", 
-                                plotOutput("density_plot", width = "100%", height = "800px"
-                                           # width = "110%", height = "1000px"
+                                plotOutput("density_plot", width = "100%", height = "auto"
                                            )),
                        tabPanel(title = "Data", 
                                 DTOutput("data_preview")),
-                       tabPanel(title = "Plot 01", 
-                                plotOutput("test1", width = "100%")
-                                )
+                       tabPanel(title = uiOutput("plotTitleA"), 
+                                plotOutput("plotA", width = "100%", height = "auto")
+                                ),
+                       tabPanel(title = uiOutput("plotTitleB"), 
+                                plotOutput("plotB", width = "100%", height = "auto")
+                       )
           )
         )
     )
@@ -142,18 +142,33 @@ server <- function(input, output, session) {
     
     density_maps <- map2(density_data(), names(density_data()), make_maps)
   })
+  
+  ## Title for first tabpanel
+  output$plotTitleA <- renderText({
+    str_to_sentence(names(density_maps()[1]))
+  })
+  ## Title for second tabpanel
+  output$plotTitleB <- renderText({
+    str_to_sentence(names(density_maps()[2]))
+  })
     
   output$density_plot <- renderPlot({
-    
     ## Create the maps
     wrap_plots(density_maps()) +
       plot_layout(guides = "auto", ncol = 1)
-  }, execOnResize = TRUE, bg = "transparent")
+  }, execOnResize = TRUE, bg = "transparent", 
+  height = function() {400 * length(density_maps())}
+  )
   
-  output$test1 <- renderPlot({
+  # Create seperate plots
+  output$plotA <- renderPlot({
     density_maps()[1]
-  }, execOnResize = TRUE, bg = "transparent"
+  }, execOnResize = TRUE, bg = "transparent", height = 400
 )
+  output$plotB <- renderPlot({
+    density_maps()[2]
+  }, execOnResize = TRUE, bg = "transparent", height = 400
+  )
 }
 
 # Run the application 
