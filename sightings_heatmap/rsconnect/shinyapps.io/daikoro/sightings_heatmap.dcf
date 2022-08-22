@@ -1,0 +1,13 @@
+name: sightings_heatmap
+title: sightings_heatmap
+username:
+account: daikoro
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6824211
+bundleId: 6225927
+url: https://daikoro.shinyapps.io/sightings_heatmap/
+when: 1661181215.4323
+lastSyncTime: 1661181215.4323
+asMultiple: FALSE
+asStatic: FALSE
