@@ -18,6 +18,7 @@ make_maps <- function(density_obj, species){
                aes(x = x, y = y, fill = v_km, alpha = v_km)) +
     scale_fill_viridis_c("Density", option = input$colourScheme,
                          limits = c(0, highest_value()),
+                         breaks = scales::extended_breaks(n = 4),
                          na.value = "transparent") +
     scale_alpha_continuous(range = c(0, 1), guide = "none") +
     labs(title = paste("Distribution of", species, "in OWNR"),
@@ -30,7 +31,7 @@ make_maps <- function(density_obj, species){
                            height = unit(1, "cm"), width = unit(1, "cm")) +
     theme_void() +
     theme(
-      legend.position = c(0.125, 0.15),
+      legend.position = c(0.115, 0.16),
       legend.direction = "horizontal",
       legend.title = element_text(face = "bold"),
       plot.title = element_text(face = "bold"),

@@ -51,27 +51,29 @@ ui <- fluidPage(
                                                 "mako", "turbo"), 
                       label = "Colour scheme",
                       selected = "magma", multiple = FALSE
-        )
         ),
+        width = 3),
 
         # Show a plot of the generated distribution
         mainPanel(
+          width = 9,
           tabsetPanel( type = "tabs",
                        tabPanel(title = "Heat map", 
                                 plotOutput("density_plot", width = "100%", height = "auto"
-                                           )),
+                                           ),
+                                uiOutput("download01")),
                        tabPanel(title = "Data", 
                                 DTOutput("data_preview")),
                        tabPanel(title = uiOutput("plotTitleA"), 
-                                plotOutput("plotA", width = "100%", height = "auto")
-                                ),
+                                plotOutput("plotA", width = "100%", height = "auto"),
+                                downloadButton('downloadBlackHeatmap','Download Heat map')),
                        tabPanel(title = uiOutput("plotTitleB"), 
-                                plotOutput("plotB", width = "100%", height = "auto")
+                                plotOutput("plotB", width = "100%", height = "auto"),
+                                downloadButton('downloadWhiteHeatmap','Download Heat map'))
                        )
           )
         )
     )
-)
 
 # Define server logic required
 server <- function(input, output, session) {
@@ -169,6 +171,38 @@ server <- function(input, output, session) {
     density_maps()[2]
   }, execOnResize = TRUE, bg = "transparent", height = 400
   )
+  
+  # Download functions
+  output$download01 <- renderUI({
+    req(density_maps())
+    downloadButton('downloadAllHeatmaps', label = 'Download heat map') })
+  
+  ## All heatmaps
+  output$downloadAllHeatmaps <- downloadHandler(
+    filename = paste(format(Sys.Date(), "%Y%m%d"), "RhinoHeatMap.png", sep = '_'),
+    content = function(file){
+      req(density_maps())
+      ggsave(file, plot = wrap_plots(density_maps(), ncol = 1), device = "png", 
+             height = 10, width = 10, units = "in")
+    },       contentType = " image/png")
+  
+  ## Black rhino
+  output$downloadBlackHeatmap <- downloadHandler(
+    filename = paste(format(Sys.Date(), "%Y%m%d"), "BlackRhinoHeatMap.png", sep = '_'),
+    content = function(file){
+      req(density_maps())
+      ggsave(file, plot = density_maps()[1], device = "png", 
+             height = 10, width = 10, units = "in")
+    },       contentType = " image/png")
+  
+  ## White rhino
+  output$downloadBlackHeatmap <- downloadHandler(
+    filename = paste(format(Sys.Date(), "%Y%m%d"), "WhiteRhinoHeatMap.png", sep = '_'),
+    content = function(file){
+      req(density_maps())
+      ggsave(file, plot = density_maps()[2], device = "png", 
+             height = 10, width = 10, units = "in")
+    },       contentType = " image/png")
 }
 
 # Run the application 
