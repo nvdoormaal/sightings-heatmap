@@ -5,9 +5,9 @@ account: daikoro
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 6824211
-bundleId: 6225965
+bundleId: 6225988
 url: https://daikoro.shinyapps.io/sightings_heatmap/
-when: 1661181857.50728
-lastSyncTime: 1661181857.50728
+when: 1661182297.24019
+lastSyncTime: 1661182297.24019
 asMultiple: FALSE
 asStatic: FALSE
